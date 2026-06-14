@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simulador de Flota — Gasoducto Virtual (GNC)</title>
+<meta name="description" content="Cálculo visual de jumbos y tractores para abastecer gas comprimido a un set de fractura mediante gasoducto virtual." />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="titles">
+      <h1>Simulador de Flota — Gasoducto Virtual (GNC)</h1>
+      <p class="subtitle">Cuántos jumbos y tractores hacen falta para abastecer la demanda diaria de gas comprimido.</p>
+    </div>
+    <div class="actions">
+      <button id="btnReset" class="btn" type="button">Restablecer</button>
+      <button id="btnPrint" class="btn" type="button">Imprimir / PDF</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===== PARÁMETROS ===== -->
+  <section class="card" id="seccion-parametros">
+    <h2>Parámetros</h2>
+    <div class="dist-quick">
+      <span class="dist-quick-label">Distancia rápida:</span>
+      <button class="chip" data-dist="70" type="button">70 km</button>
+      <button class="chip" data-dist="170" type="button">170 km</button>
+      <span class="dist-quick-note">70 km ≈ ruta corta · 170 km ≈ ruta larga (sensibilidad)</span>
+    </div>
+    <div id="paramGrid" class="param-grid"><!-- generado por JS --></div>
+  </section>
+
+  <!-- ===== ESCENARIOS ===== -->
+  <section id="seccion-escenarios">
+    <h2 class="section-title">Escenarios <span class="active-dist">a <strong id="activeDistLabel">70</strong> km</span></h2>
+    <div class="scenarios">
+      <article class="card scenario scenario-a">
+        <div class="scenario-head">
+          <span class="dot dot-teal"></span>
+          <h3>Desenganche permitido</h3>
+          <span class="scenario-tag">drop &amp; hook</span>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi"><span class="kpi-num" id="A-jumbos">—</span><span class="kpi-cap">Jumbos</span></div>
+          <div class="kpi"><span class="kpi-num" id="A-tractores">—</span><span class="kpi-cap">Tractores</span></div>
+          <div class="kpi"><span class="kpi-num" id="A-util">—</span><span class="kpi-cap">Utiliz. estación</span></div>
+          <div class="kpi"><span class="kpi-num" id="A-ciclo">—</span><span class="kpi-cap">Ciclo tractor (h)</span></div>
+          <div class="kpi"><span class="kpi-num" id="A-viajes">—</span><span class="kpi-cap">Viajes / día</span></div>
+        </div>
+        <p class="scenario-note" id="A-note"></p>
+      </article>
+
+      <article class="card scenario scenario-b">
+        <div class="scenario-head">
+          <span class="dot dot-petrol"></span>
+          <h3>Desenganche NO permitido</h3>
+          <span class="scenario-tag">tractor atado</span>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi"><span class="kpi-num" id="B-jumbos">—</span><span class="kpi-cap">Jumbos</span></div>
+          <div class="kpi"><span class="kpi-num" id="B-tractores">—</span><span class="kpi-cap">Tractores</span></div>
+          <div class="kpi"><span class="kpi-num" id="B-util">—</span><span class="kpi-cap">Utiliz. estación</span></div>
+          <div class="kpi"><span class="kpi-num" id="B-ciclo">—</span><span class="kpi-cap">Ciclo rig (h)</span></div>
+          <div class="kpi"><span class="kpi-num" id="B-viajes">—</span><span class="kpi-cap">Viajes / día</span></div>
+        </div>
+        <p class="scenario-note" id="B-note"></p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== ANIMACIÓN ===== -->
+  <section class="card" id="seccion-animacion">
+    <div class="anim-head">
+      <h2>Cómo funciona</h2>
+      <div class="anim-controls">
+        <div class="segmented" id="policyToggle" role="group" aria-label="Política">
+          <button class="seg-btn is-active" data-policy="A" type="button">Con desenganche</button>
+          <button class="seg-btn" data-policy="B" type="button">Sin desenganche</button>
+        </div>
+        <button id="btnPlay" class="btn btn-small" type="button">Pausar</button>
+        <button id="btnSpeed" class="btn btn-small" type="button">1×</button>
+      </div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="scene"></canvas>
+    </div>
+    <p class="anim-caption" id="animCaption"></p>
+    <p class="anim-legend">
+      <span class="lg lg-cab"></span> Tractor
+      <span class="lg lg-trailer"></span> Jumbo (tubos de GNC)
+      <span class="lg lg-gas"></span> Gas cargado
+    </p>
+  </section>
+
+  <!-- ===== SENSIBILIDAD ===== -->
+  <section class="card" id="seccion-sensibilidad">
+    <h2>Sensibilidad a la distancia <span class="muted" id="sensPolicyLabel"></span></h2>
+    <div class="sens-grid">
+      <div class="chart-box">
+        <svg id="chart" viewBox="0 0 520 300" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Comparación 70 km vs 170 km"></svg>
+      </div>
+      <div class="table-box">
+        <table id="tablaSens">
+          <thead>
+            <tr><th>Métrica</th><th>70 km</th><th>170 km</th><th>Δ%</th></tr>
+          </thead>
+          <tbody><!-- generado por JS --></tbody>
+        </table>
+        <p class="muted small" id="sensCheck"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SUPUESTOS ===== -->
+  <section class="card" id="seccion-supuestos">
+    <h2>Supuestos del modelo</h2>
+    <ul class="assump">
+      <li>Modelo determinístico de ciclo (ley de Little): da el <strong>piso mínimo factible</strong> de flota, no la compra recomendada.</li>
+      <li>El volumen por jumbo es <strong>volumen útil entregable</strong> a la presión del set, no el nameplate del tubo.</li>
+      <li>Demanda y consumo constantes; sin paradas por clima, ruta, inspección o recompresión de vacíos.</li>
+      <li>Carga simultánea máxima = nº de surtidores. La descarga en el set usa su propia tasa.</li>
+      <li>Recomendado <strong>+1 spare</strong> de flota y, antes de comprometer capital, un chequeo Monte-Carlo del caso largo (donde domina el tránsito).</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  <p>Herramienta ilustrativa de cálculo logístico. Los resultados son estimaciones. <button id="btnLink" class="linklike" type="button">Copiar enlace de este escenario</button></p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
