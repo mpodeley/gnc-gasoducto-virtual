@@ -58,8 +58,10 @@ main{max-width:1200px;margin:1.1rem auto;padding:0 1.2rem;display:flex;flex-dire
   background:var(--white);border:1px solid var(--border);
   border-radius:var(--radius);box-shadow:var(--shadow);padding:1.1rem 1.2rem;
 }
-.section-title{margin-bottom:.6rem}
+.section-title{margin-bottom:.4rem}
 .active-dist{font-weight:400;color:var(--gray);font-size:.9rem}
+.section-lead{margin:.1rem 0 .8rem;color:var(--gray);font-size:.9rem}
+.section-lead strong{color:var(--petrol)}
 
 /* ===== Parámetros ===== */
 .dist-quick{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.9rem}

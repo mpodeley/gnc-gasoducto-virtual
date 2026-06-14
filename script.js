@@ -16,11 +16,10 @@
     { key: "capacidadJumbo", label: "Capacidad por jumbo", unit: "m³",    min: 5500,   max: 7000,   step: 100,  def: 6000,   dec: 0 },
     { key: "nameplate",      label: "Nameplate estación",  unit: "m³/h",  min: 6000,   max: 24000,  step: 500,  def: 12000,  dec: 0 },
     { key: "surtidores",     label: "Surtidores",          unit: "",      min: 2,      max: 4,      step: 1,    def: 3,      dec: 0 },
-    { key: "tasaDescarga",   label: "Tasa de descarga",    unit: "m³/h",  min: 2000,   max: 6000,   step: 250,  def: 4000,   dec: 0 },
     { key: "velocidadMedia", label: "Velocidad media",     unit: "km/h",  min: 40,     max: 70,     step: 1,    def: 50,     dec: 0 },
     { key: "horasOperacion", label: "Horas de operación",  unit: "h/d",   min: 12,     max: 24,     step: 1,    def: 24,     dec: 0 },
     { key: "tiempoManiobra", label: "Maniobra / enganche", unit: "h",     min: 0.15,   max: 0.5,    step: 0.05, def: 0.25,   dec: 2 },
-    { key: "staging",        label: "Jumbos en staging",   unit: "",      min: 1,      max: 3,      step: 1,    def: 2,      dec: 0 },
+    { key: "staging",        label: "Jumbos en el set",    unit: "",      min: 1,      max: 3,      step: 1,    def: 2,      dec: 0 },
     { key: "spare",          label: "Spare de flota",      unit: "",      min: 0,      max: 2,      step: 1,    def: 0,      dec: 0 },
   ];
 
@@ -30,27 +29,34 @@
     const n = p.demandaDiaria / p.capacidadJumbo;          // viajes/día (continuo)
     const tasaCarga = p.nameplate / p.surtidores;          // m³/h por surtidor
     const tL = p.capacidadJumbo / tasaCarga;               // h de carga por jumbo
-    const tU = p.capacidadJumbo / p.tasaDescarga;          // h de descarga en el set
     const tTr = p.distanciaKm / p.velocidadMedia;          // h de viaje (una vía)
     const m = p.tiempoManiobra;
 
-    // Inventario en flujo (ley de Little por etapa)
-    const Ist = (n * tL) / H;
-    const Iset = (n * tU) / H;
-    const Itr = (n * 2 * tTr) / H;
-    const Iman = (n * 2 * m) / H;
-    const Iflow = Ist + Iset + Itr + Iman;
+    // En el set siempre hay ~'staging' jumbos en simultáneo (alimentan/relevan
+    // para garantizar suministro), en ambas políticas. Por ley de Little, eso fija
+    // la residencia en el set: con tasa de llegada n/H, mantener 'staging' presentes
+    // implica que cada jumbo permanece wSet = staging·H/n. (Comprobación: la suma de
+    // entrega de esos jumbos = demanda.)
+    const wSet = (p.staging * H) / n;                      // h de residencia en el set
 
-    let nJumbos, nTractores, cicloHoras;
+    // Inventario de jumbos (idéntico en ambas políticas: el gas se carga,
+    // transporta y consume igual, lleve tractor o no).
+    const Ist = (n * tL) / H;                              // cargando en estación
+    const Itr = (n * 2 * tTr) / H;                         // en tránsito (ida + vuelta)
+    const Iman = (n * 2 * m) / H;                          // en maniobra
+    const Iset = p.staging;                                // en el set (= n·wSet/H)
+    const jumbosFlow = Ist + Itr + Iset + Iman;
+    const nJumbos = Math.ceil(jumbosFlow) + p.spare;
+
+    let nTractores, cicloHoras;
     if (p.desenganche) {
-      // El tractor no espera carga/descarga: solo lanza jumbos.
-      nJumbos = Math.ceil(Iflow + p.staging) + p.spare;
+      // El tractor no espera carga ni alimentación del set: solo transporta.
       cicloHoras = 2 * tTr + 2 * m;                        // ciclo del tractor (shuttle)
       nTractores = Math.ceil((n * cicloHoras) / H) + p.spare;
     } else {
-      // Tractor + jumbo = unidad fija; el tractor espera carga y descarga.
-      cicloHoras = tL + tU + 2 * tTr + 2 * m;              // ciclo del rig completo
-      nJumbos = Math.ceil((n * cicloHoras) / H) + p.spare;
+      // Tractor + jumbo = unidad fija: el tractor queda atado durante carga y
+      // mientras el jumbo alimenta el set. tractores = jumbos.
+      cicloHoras = tL + wSet + 2 * tTr + 2 * m;            // ciclo del rig completo
       nTractores = nJumbos;
     }
 
@@ -60,8 +66,8 @@
 
     return {
       desenganche: !!p.desenganche, distanciaKm: p.distanciaKm,
-      n, tasaCarga, tL, tU, tTr, m,
-      Iflow, nJumbos, nTractores, cicloHoras,
+      n, tasaCarga, tL, tTr, m, wSet, H,
+      Ist, jumbosFlow, nJumbos, nTractores, cicloHoras,
       utilizacionEstacion, nameplateDiario, usoNameplate,
       surtidores: p.surtidores, staging: p.staging,
     };
@@ -157,11 +163,16 @@
 
   function renderNotes(a, b) {
     el("A-note").textContent =
-      "Pocos tractores siempre en ruta (" + fmtInt(a.nTractores) +
-      "); jumbos extra cargan/descargan en paralelo (" + fmtInt(a.nJumbos) + " en juego).";
+      "Los " + fmtInt(a.nTractores) + " tractores están siempre en ruta; los jumbos cargan y " +
+      "alimentan el set sin tractor. Mismos jumbos que sin desenganche.";
     el("B-note").textContent =
-      "Cada tractor queda inmovilizado durante carga y descarga: rig fijo de " +
+      "Cada tractor queda atado a su jumbo durante la carga y mientras alimenta el set → " +
       fmtInt(b.nTractores) + " tractores = " + fmtInt(b.nJumbos) + " jumbos.";
+    el("escLead").innerHTML =
+      "Los <strong>jumbos son los mismos (" + fmtInt(a.nJumbos) +
+      ")</strong> en ambas políticas: el gas se carga, transporta y consume igual. " +
+      "El desenganche solo cambia los <strong>tractores: " + fmtInt(a.nTractores) +
+      " vs " + fmtInt(b.nTractores) + "</strong>.";
   }
 
   // Gráfico de barras agrupadas (SVG), política activa: Jumbos {70,170}, Tractores {70,170}
@@ -249,8 +260,7 @@
 
   const Anim = (function () {
     const SPH = 1.6;          // segundos de pantalla por hora real
-    const MAX_CABS = 6;       // tope de tractores dibujados
-    const MAX_YARD = 5;       // tope de jumbos extra en patio (política A)
+    const MAX_CABS = 6;       // tope de vehículos dibujados en ruta
 
     let canvas, ctx, W = 0, Hc = 0, dpr = 1;
     let clock = 0, last = 0, speed = 1, running = true, rafId = null;
@@ -287,9 +297,9 @@
       data = r; policy = pol;
       // caption
       el("animCaption").textContent =
-        fmtInt(r.nTractores) + " tractores · " + fmtInt(r.nJumbos) + " jumbos · " +
-        "viaje " + fmt1(r.tTr) + " h · ciclo " + fmt1(r.cicloHoras) + " h" +
-        (policy === "A" ? " · tractores siempre en ruta" : " · tractores esperan carga/descarga");
+        fmtInt(r.nTractores) + " tractores · " + fmtInt(r.nJumbos) + " jumbos · viaje " +
+        fmt1(r.tTr) + " h · " + fmtInt(r.staging) + " jumbos en el set" +
+        (policy === "A" ? " · tractores siempre en ruta" : " · tractores atados al jumbo");
       if (!running) draw(); // refrescar frame estático
     }
 
@@ -311,13 +321,17 @@
 
     // ---- geometría ----
     function layout() {
+      const stationX = W * 0.12, setX = W * 0.88;
       return {
-        stationX: W * 0.13,
-        setX: W * 0.87,
-        yTop: Hc * 0.40,     // carril ida
-        yBottom: Hc * 0.62,  // carril vuelta
+        stationX, setX,
+        stationSlotX: stationX + 54,   // playa de carga (junto a la estación)
+        setSlotX: setX - 54,           // jumbos alimentando el set
+        roadL: stationX + 96,          // tramo de ruta (entre playas)
+        roadR: setX - 96,
+        yTop: Hc * 0.42,               // carril ida
+        yBottom: Hc * 0.60,            // carril vuelta
         yMid: Hc * 0.51,
-        yard: { x: W * 0.235, y0: Hc * 0.30, dy: Hc * 0.13 },
+        slotYs: [Hc * 0.34, Hc * 0.50, Hc * 0.66],
       };
     }
 
@@ -384,6 +398,12 @@
       drawCab(cx + dir * (50 / 2 + 18 / 2 - 2), cy, dir);
     }
 
+    // unidad en playa/set: rig (sin desenganche) o jumbo solo (con desenganche)
+    function drawUnit(cx, cy, dir, fill, isRig) {
+      if (isRig) drawRig(cx, cy, dir, fill);
+      else drawTrailer(cx, cy, fill);
+    }
+
     function drawStation(L) {
       const x = L.stationX, w = 92, h = 64;
       const bx = x - w / 2, by = Hc * 0.13;
@@ -436,55 +456,46 @@
       drawSet(L);
       if (!data) return;
 
-      const tL = data.tL, tU = data.tU, tTr = data.tTr, m = data.m;
-      const nShown = Math.max(1, Math.min(MAX_CABS, data.nTractores));
+      const tL = data.tL, tTr = data.tTr, wSet = data.wSet;
+      const isRig = policy === "B";  // sin desenganche => el tractor queda con el jumbo
 
-      if (policy === "B") {
-        // Rig fijo: load (parado) -> out -> unload (parado) -> ret
-        const segs = [
-          { key: "load", dur: tL * SPH },
-          { key: "out", dur: tTr * SPH },
-          { key: "unload", dur: tU * SPH },
-          { key: "ret", dur: tTr * SPH },
-        ];
-        const cycle = segs.reduce((a, s) => a + s.dur, 0);
-        for (let i = 0; i < nShown; i++) {
-          const ph = phaseAt(segs, clock + (i / nShown) * cycle);
-          let x, y, dir, fill;
-          if (ph.key === "load") { x = L.stationX; y = L.yTop; dir = 1; fill = ph.p; }
-          else if (ph.key === "out") { x = lerp(L.stationX, L.setX, ph.p); y = L.yTop; dir = 1; fill = 1; }
-          else if (ph.key === "unload") { x = L.setX; y = L.yBottom; dir = -1; fill = 1 - ph.p; }
-          else { x = lerp(L.setX, L.stationX, ph.p); y = L.yBottom; dir = -1; fill = 0; }
-          drawRig(x, y, dir, fill);
-        }
-      } else {
-        // Política A: cabs siempre en ruta + patio de jumbos cargando en paralelo
-        // patio (jumbos extra)
-        const extras = Math.max(0, Math.min(MAX_YARD, data.nJumbos - data.nTractores));
-        const yardSegs = [{ key: "fill", dur: tL * SPH }, { key: "hold", dur: 0.6 * SPH }];
-        const yardCycle = yardSegs.reduce((a, s) => a + s.dur, 0);
-        for (let i = 0; i < extras; i++) {
-          const ph = phaseAt(yardSegs, clock + (i / Math.max(1, extras)) * yardCycle);
-          const fill = ph.key === "fill" ? ph.p : 1;
-          drawTrailer(L.yard.x, L.yard.y0 + i * L.yard.dy, fill);
-        }
-        // cabs shuttle: swapS -> out(full) -> swapE -> ret(empty)
-        const segs = [
-          { key: "swapS", dur: m * SPH },
-          { key: "out", dur: tTr * SPH },
-          { key: "swapE", dur: m * SPH },
-          { key: "ret", dur: tTr * SPH },
-        ];
-        const cycle = segs.reduce((a, s) => a + s.dur, 0);
-        for (let i = 0; i < nShown; i++) {
-          const ph = phaseAt(segs, clock + (i / nShown) * cycle);
-          let x, y, dir, fill;
-          if (ph.key === "swapS") { x = L.stationX; y = L.yTop; dir = 1; fill = ph.p; }
-          else if (ph.key === "out") { x = lerp(L.stationX, L.setX, ph.p); y = L.yTop; dir = 1; fill = 1; }
-          else if (ph.key === "swapE") { x = L.setX; y = L.yBottom; dir = -1; fill = 1 - ph.p; }
-          else { x = lerp(L.setX, L.stationX, ph.p); y = L.yBottom; dir = -1; fill = 0; }
-          drawRig(x, y, dir, fill);
-        }
+      // --- Estación: jumbos cargando (gas subiendo) ---
+      const nLoad = Math.max(1, Math.min(3, data.surtidores, Math.ceil(data.Ist)));
+      const loadSegs = [{ key: "fill", dur: tL * SPH }, { key: "hold", dur: 0.5 * SPH }];
+      const loadCycle = loadSegs.reduce((a, s) => a + s.dur, 0);
+      for (let i = 0; i < nLoad; i++) {
+        const ph = phaseAt(loadSegs, clock + (i / nLoad) * loadCycle);
+        const fill = ph.key === "fill" ? ph.p : 1;
+        drawUnit(L.stationSlotX, L.slotYs[i], 1, fill, isRig);
+      }
+
+      // --- Set: ~'staging' jumbos alimentando en simultáneo (gas bajando) ---
+      const nSet = Math.max(1, Math.min(3, data.staging));
+      const setSegs = [{ key: "drain", dur: wSet * SPH }, { key: "gone", dur: 0.4 * SPH }];
+      const setCycle = setSegs.reduce((a, s) => a + s.dur, 0);
+      for (let i = 0; i < nSet; i++) {
+        const ph = phaseAt(setSegs, clock + (i / nSet) * setCycle * 0.5);
+        if (ph.key === "drain") drawUnit(L.setSlotX, L.slotYs[i], 1, 1 - ph.p, isRig);
+      }
+
+      // --- Ruta: transporte. En la ruta el tractor siempre tira del jumbo;
+      //     con desenganche hay menos vehículos en ruta. ---
+      const nRoad = Math.max(1, Math.min(MAX_CABS, data.nTractores));
+      const roadSegs = [
+        { key: "out", dur: tTr * SPH },
+        { key: "turnR", dur: 0.25 * SPH },
+        { key: "back", dur: tTr * SPH },
+        { key: "turnL", dur: 0.25 * SPH },
+      ];
+      const roadCycle = roadSegs.reduce((a, s) => a + s.dur, 0);
+      for (let i = 0; i < nRoad; i++) {
+        const ph = phaseAt(roadSegs, clock + (i / nRoad) * roadCycle);
+        let x, y, dir, fill;
+        if (ph.key === "out") { x = lerp(L.roadL, L.roadR, ph.p); y = L.yTop; dir = 1; fill = 1; }
+        else if (ph.key === "turnR") { x = L.roadR; y = lerp(L.yTop, L.yBottom, ph.p); dir = 1; fill = 1; }
+        else if (ph.key === "back") { x = lerp(L.roadR, L.roadL, ph.p); y = L.yBottom; dir = -1; fill = 0; }
+        else { x = L.roadL; y = lerp(L.yBottom, L.yTop, ph.p); dir = -1; fill = 0; }
+        drawRig(x, y, dir, fill);
       }
     }
 

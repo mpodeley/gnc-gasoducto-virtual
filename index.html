@@ -39,6 +39,7 @@
   <!-- ===== ESCENARIOS ===== -->
   <section id="seccion-escenarios">
     <h2 class="section-title">Escenarios <span class="active-dist">a <strong id="activeDistLabel">70</strong> km</span></h2>
+    <p class="section-lead" id="escLead"></p>
     <div class="scenarios">
       <article class="card scenario scenario-a">
         <div class="scenario-head">
@@ -124,7 +125,8 @@
       <li>Modelo determinístico de ciclo (ley de Little): da el <strong>piso mínimo factible</strong> de flota, no la compra recomendada.</li>
       <li>El volumen por jumbo es <strong>volumen útil entregable</strong> a la presión del set, no el nameplate del tubo.</li>
       <li>Demanda y consumo constantes; sin paradas por clima, ruta, inspección o recompresión de vacíos.</li>
-      <li>Carga simultánea máxima = nº de surtidores. La descarga en el set usa su propia tasa.</li>
+      <li>En el set hay ~2 jumbos en simultáneo (alimentando / relevándose) para garantizar el suministro, en ambas políticas. Eso fija la residencia en el set (≈ jumbos_en_set · H / viajes).</li>
+      <li>Carga simultánea máxima = nº de surtidores.</li>
       <li>Recomendado <strong>+1 spare</strong> de flota y, antes de comprometer capital, un chequeo Monte-Carlo del caso largo (donde domina el tránsito).</li>
     </ul>
   </section>

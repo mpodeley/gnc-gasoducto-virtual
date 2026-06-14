@@ -6,25 +6,29 @@ Compara dos políticas operativas y permite analizar la sensibilidad a la distan
 
 ## Qué calcula
 
-- **Desenganche permitido (drop-and-hook):** el tractor deja el jumbo y engancha otro ya cargado; no espera la carga ni la descarga. Menos tractores, más jumbos en juego.
-- **Desenganche NO permitido (tractor atado):** el tractor permanece con su jumbo durante toda la carga y descarga. El número de tractores iguala al de jumbos.
+- **Desenganche permitido (drop-and-hook):** el tractor deja el jumbo y engancha otro; no espera la carga ni la alimentación del set. Menos tractores; el resto del tiempo los jumbos trabajan sin tractor.
+- **Desenganche NO permitido (tractor atado):** el tractor permanece con su jumbo durante la carga y mientras alimenta el set. El número de tractores iguala al de jumbos.
+
+**El número de jumbos es el mismo en ambas políticas** (el gas se carga, transporta y consume igual); el desenganche solo cambia el número de **tractores**.
 
 Para cada política muestra: nº de jumbos, nº de tractores, utilización de la estación, ciclo (h) y viajes/día, además de un esquema animado y un gráfico de sensibilidad **70 km vs 170 km**.
 
 ## Modelo (resumen)
 
-Dimensionamiento determinístico por ciclo (ley de Little):
+Dimensionamiento determinístico por ciclo (ley de Little). En el set hay siempre ~`jumbos_en_set` (p. ej. 2) en simultáneo para garantizar el suministro, en ambas políticas; eso fija la residencia en el set:
 
 ```
-n   = Demanda / Capacidad_jumbo          (viajes/día)
-t_L = Capacidad / (Nameplate / Surtidores)   carga
-t_u = Capacidad / Tasa_descarga              descarga
-t_tr= Distancia / Velocidad                  viaje (una vía)
+n     = Demanda / Capacidad_jumbo            (viajes/día)
+t_L   = Capacidad / (Nameplate / Surtidores)   carga
+t_tr  = Distancia / Velocidad                  viaje (una vía)
+w_set = jumbos_en_set · H / n                  residencia en el set (ley de Little)
 
-Inventario en flujo: I = n/H · (t_L + t_u + 2·t_tr + 2·maniobra)
+Jumbos (ambas políticas):
+  jumbos = ⌈ n/H · (t_L + 2·t_tr + 2·maniobra) + jumbos_en_set ⌉ + spare
 
-Con desenganche:   jumbos = ⌈I + staging⌉ + spare ;  tractores = ⌈n·(2·t_tr+2·maniobra)/H⌉ + spare
-Sin desenganche:   jumbos = tractores = ⌈n·(t_L+t_u+2·t_tr+2·maniobra)/H⌉ + spare
+Tractores:
+  con desenganche:  ⌈ n·(2·t_tr + 2·maniobra)/H ⌉ + spare
+  sin desenganche:  = jumbos   (ciclo del rig = t_L + w_set + 2·t_tr + 2·maniobra)
 ```
 
 Los resultados representan el **piso mínimo factible**; se recomienda agregar spare y, antes de comprometer capital, validar con un análisis de variabilidad (Monte-Carlo), sobre todo en distancias largas.
